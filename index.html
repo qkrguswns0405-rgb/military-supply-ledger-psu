@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>국방 디지털 군 보급품 통합 관리 시스템</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 아이콘 CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS Client CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        military: {
+                            dark: '#0f172a',
+                            navy: '#1e293b',
+                            card: '#1e293b',
+                            border: '#334155',
+                            accent: '#10b981', // 올리브/택티컬 그린 포인트
+                            accentHover: '#059669',
+                            gold: '#f59e0b',
+                            badge: '#047857'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body
+    class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-emerald-500 selection:text-white">
+
+    <!-- 상단 국방 관리 헤더 -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- 로고 및 서비스명 -->
+            <div class="flex items-center space-x-3">
+                <div
+                    class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-800 flex items-center justify-center shadow-lg shadow-emerald-900/30 border border-emerald-500/30">
+                    <i class="fa-solid fa-shield-halved text-emerald-200 text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <span class="font-black text-lg tracking-wide text-white">MIL-SUPPLY OPS</span>
+                        <span
+                            class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[10px] font-semibold px-2 py-0.5 rounded-full">공개
+                            대장부</span>
+                    </div>
+                    <p class="text-xs text-slate-400">국방 디지털 군 보급품 통합 관리 시스템</p>
+                </div>
+            </div>
+
+            <!-- 상태 및 액션 버튼 -->
+            <div class="flex items-center space-x-3">
+                <!-- DB 연결 상태 뱃지 (모든 화면 크기에서 표시) -->
+                <div id="db-status-badge"
+                    class="flex items-center space-x-2 px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs">
+                    <span id="db-status-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="db-status-text" class="text-slate-300 font-medium">연결 확인 중...</span>
+                </div>
+
+                <!-- 대장 작성 버튼 -->
+                <button onclick="openFormModal()"
+                    class="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-lg shadow-lg shadow-emerald-700/20 transition-all text-sm active:scale-95">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span>보급품 사용 대장 작성</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Supabase 키 미설정 시 안내 배너 -->
+    <div id="api-key-banner"
+        class="hidden bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 border-b border-amber-600/30 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-xs sm:text-sm">
+            <div class="flex items-center space-x-3 text-amber-200">
+                <i class="fa-solid fa-circle-exclamation text-amber-400 text-lg"></i>
+                <span><strong>현재 [데모 모드]로 작동 중입니다:</strong> 나의 Supabase를 연결하려면 아래 버튼을 눌러 프로젝트 정보를 입력하세요. (또는 <code
+                        class="bg-slate-800 px-1.5 py-0.5 rounded text-amber-300">app.js</code> 파일에서 직접 수정)</span>
+            </div>
+            <button onclick="openConfigModal()"
+                class="whitespace-nowrap px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded shadow transition text-xs">
+                <i class="fa-solid fa-key mr-1"></i> Supabase 키 직접 입력
+            </button>
+        </div>
+    </div>
+
+    <!-- 메인 컨테이너 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+
+        <!-- 1. 통계 요약 대시보드 -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- 총 불출 건수 -->
+            <div
+                class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div
+                    class="absolute -right-2 -bottom-2 opacity-5 text-slate-100 text-6xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">총 보급품 불출 기록</div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="stat-total" class="text-2xl sm:text-3xl font-black text-white">0</span>
+                    <span class="text-xs text-slate-400">건</span>
+                </div>
+                <div class="mt-2 text-[11px] text-emerald-400 flex items-center">
+                    <i class="fa-solid fa-check-circle mr-1"></i> 전 군 실시간 누적
+                </div>
+            </div>
+
+            <!-- 금일 사용 건수 -->
+            <div
+                class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div
+                    class="absolute -right-2 -bottom-2 opacity-5 text-slate-100 text-6xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-calendar-day"></i>
+                </div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">오늘 신규 불출</div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="stat-today" class="text-2xl sm:text-3xl font-black text-emerald-400">0</span>
+                    <span class="text-xs text-slate-400">건</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center">
+                    <i class="fa-solid fa-clock mr-1"></i> 금일 00시 기준
+                </div>
+            </div>
+
+            <!-- 상세 메모/비고 기록 건수 -->
+            <div
+                class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div
+                    class="absolute -right-2 -bottom-2 opacity-5 text-slate-100 text-6xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                </div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">특이사항/사용 메모</div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="stat-memo" class="text-2xl sm:text-3xl font-black text-amber-400">0</span>
+                    <span class="text-xs text-slate-400">건</span>
+                </div>
+                <div class="mt-2 text-[11px] text-slate-400 flex items-center">
+                    <i class="fa-solid fa-comment-dots mr-1"></i> 현장 특이사항 기록
+                </div>
+            </div>
+
+            <!-- 불출/사용 중 상태 -->
+            <div
+                class="bg-slate-900/80 border border-slate-800 rounded-xl p-4 sm:p-5 shadow-sm relative overflow-hidden group hover:border-slate-700 transition">
+                <div
+                    class="absolute -right-2 -bottom-2 opacity-5 text-slate-100 text-6xl group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-rotate"></i>
+                </div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">현재 사용중 (미반납)</div>
+                <div class="flex items-baseline space-x-2">
+                    <span id="stat-active" class="text-2xl sm:text-3xl font-black text-blue-400">0</span>
+                    <span class="text-xs text-slate-400">건</span>
+                </div>
+                <div class="mt-2 text-[11px] text-blue-400 flex items-center">
+                    <i class="fa-solid fa-arrow-right-arrow-left mr-1"></i> 반납 관리 품목
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. 빠른 대장 작성 섹션 (데스크톱/모바일 바로 입력 가능) -->
+        <section class="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+            <div
+                class="flex flex-col md:flex-row md:items-center justify-between pb-4 mb-4 border-b border-slate-800 gap-2">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-file-pen text-emerald-400"></i>
+                        <span>군 보급품 사용 대장 빠른 작성</span>
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-0.5">보급품을 사용 또는 불출하였을 경우 누구나 즉시 기록하여 투명하게 관리할 수 있습니다.</p>
+                </div>
+                <div class="text-xs text-slate-400 flex items-center space-x-2">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>공개 데이터베이스 자동 저장</span>
+                </div>
+            </div>
+
+            <!-- 입력 폼 -->
+            <form id="supply-ledger-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- 1. 품목 카테고리 -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            품목 분류 <span class="text-emerald-400">*</span>
+                        </label>
+                        <select id="form-category" required
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                            <option value="장구/탄약">장구/탄약</option>
+                            <option value="급양/부식">급양/부식 (전투식량 등)</option>
+                            <option value="피복류">피복류 (방한의류 등)</option>
+                            <option value="의무/방역">의무/방역 (구급낭 등)</option>
+                            <option value="통신/전자">통신/전자 (배터리 등)</option>
+                            <option value="정비/소모">정비/소모품 (오일/공구)</option>
+                            <option value="일반행정">일반행정 (복사지 등)</option>
+                        </select>
+                    </div>
+
+                    <!-- 2. 보급품 품목명 -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            보급품 품목명 <span class="text-emerald-400">*</span>
+                        </label>
+                        <input type="text" id="form-name" required placeholder="예: K-2 소총 멜빵끈, 전투식량"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                    </div>
+
+                    <!-- 3. 수량 및 단위 -->
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                                수량 <span class="text-emerald-400">*</span>
+                            </label>
+                            <input type="number" id="form-quantity" min="1" value="1" required
+                                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">단위</label>
+                            <input type="text" id="form-unit" value="EA" placeholder="EA, 세트"
+                                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                        </div>
+                    </div>
+
+                    <!-- 4. 불출/작성자 (소속 및 성명) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            사용자 / 불출자 <span class="text-emerald-400">*</span>
+                        </label>
+                        <input type="text" id="form-user" required placeholder="예: 본부중대 병장 김태호"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                    </div>
+                </div>
+
+                <!-- 빠른 추천 태그 클릭 (초보자 입력 편의성) -->
+                <div class="flex items-center flex-wrap gap-1.5 pt-1 text-xs">
+                    <span class="text-slate-400 font-medium mr-1"><i
+                            class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> 빠른 품목:</span>
+                    <button type="button" onclick="fillQuickItem('급양/부식', '전투식량 2형 (소고기비빔밥)', 10, 'EA', '야간 훈련 행동식')"
+                        class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">전투식량
+                        2형</button>
+                    <button type="button" onclick="fillQuickItem('장구/탄약', 'K-2 멜빵끈 및 총기 멜빵', 2, 'EA', '사격 훈련 전 정비')"
+                        class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">K-2
+                        멜빵끈</button>
+                    <button type="button" onclick="fillQuickItem('피복류', '디지털 방한장갑 및 방한두건', 4, '세트', '동계 야간초소 경계근무')"
+                        class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">방한장갑
+                        세트</button>
+                    <button type="button" onclick="fillQuickItem('통신/전자', '무전기 충전 배터리(BA-6847)', 2, 'EA', '지휘망 비상대기')"
+                        class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">무전기
+                        배터리</button>
+                    <button type="button" onclick="fillQuickItem('의무/방역', '야전 멸균 압박붕대', 5, 'EA', '소대 구급낭 보충용')"
+                        class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300">압박붕대</button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                    <!-- 5. 사용 목적 / 사유 -->
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            사용 목적 및 불출 사유 <span class="text-emerald-400">*</span>
+                        </label>
+                        <input type="text" id="form-purpose" required placeholder="예: 야간 국지도발 대비 전술훈련 행동식 불출 / 노후 물품 교체"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                    </div>
+
+                    <!-- 6. 상태 선택 -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                            현재 상태
+                        </label>
+                        <select id="form-status"
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition">
+                            <option value="불출완료">불출완료 (소모)</option>
+                            <option value="사용중">사용중 (반납예정)</option>
+                            <option value="반납완료">반납완료</option>
+                            <option value="정비/수리">정비/수리 필요</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 7. 상세 메모 및 특이사항 (사용자 요청 핵심 요구사항) -->
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">
+                        상세 메모 및 특이사항 <span class="text-amber-400">(Supabase DB에 안전하게 기록됩니다)</span>
+                    </label>
+                    <textarea id="form-memo" rows="2"
+                        placeholder="물품 상태, 일련번호, 반납 예정 일시, 이상 유무 등 사용자가 남기고자 하는 메모를 자유롭게 입력하세요."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500 transition placeholder:text-slate-600"></textarea>
+                </div>
+
+                <!-- 제출 버튼 -->
+                <div class="flex items-center justify-end space-x-3 pt-2">
+                    <button type="reset"
+                        class="px-4 py-2 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-400 text-sm font-medium transition">
+                        초기화
+                    </button>
+                    <button type="submit" id="btn-submit"
+                        class="flex items-center space-x-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold px-6 py-2 rounded-lg shadow-lg shadow-emerald-900/40 text-sm transition-all active:scale-95">
+                        <i class="fa-solid fa-check"></i>
+                        <span>대장부에 기록하기 (DB 저장)</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- 3. 군 보급품 사용 대장 목록 (실시간 조회 및 필터) -->
+        <section class="space-y-4">
+            <!-- 검색 및 필터 헤더 바 -->
+            <div
+                class="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <!-- 좌측 타이틀 & 새로고침 -->
+                <div class="flex items-center space-x-3">
+                    <h3 class="text-base font-bold text-white flex items-center space-x-2">
+                        <i class="fa-solid fa-list-check text-emerald-400"></i>
+                        <span>공개 군 보급품 사용 대장부</span>
+                    </h3>
+                    <button onclick="fetchLedgerList()" title="새로고침"
+                        class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center transition active:rotate-180 duration-300">
+                        <i class="fa-solid fa-arrows-rotate text-xs"></i>
+                    </button>
+                </div>
+
+                <!-- 우측 검색 및 필터 -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <!-- 카테고리 필터 -->
+                    <select id="filter-category" onchange="applyFilters()"
+                        class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                        <option value="ALL">전체 카테고리</option>
+                        <option value="장구/탄약">장구/탄약</option>
+                        <option value="급양/부식">급양/부식</option>
+                        <option value="피복류">피복류</option>
+                        <option value="의무/방역">의무/방역</option>
+                        <option value="통신/전자">통신/전자</option>
+                        <option value="정비/소모">정비/소모</option>
+                        <option value="일반행정">일반행정</option>
+                    </select>
+
+                    <!-- 상태 필터 -->
+                    <select id="filter-status" onchange="applyFilters()"
+                        class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                        <option value="ALL">전체 상태</option>
+                        <option value="불출완료">불출완료</option>
+                        <option value="사용중">사용중</option>
+                        <option value="반납완료">반납완료</option>
+                        <option value="정비/수리">정비/수리</option>
+                    </select>
+
+                    <!-- 검색 입력창 -->
+                    <div class="relative flex-1 sm:w-60">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                        <input type="text" id="search-input" oninput="applyFilters()" placeholder="품목명, 작성자, 메모 검색..."
+                            class="w-full bg-slate-950 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 대장 목록 테이블 (데스크톱 & 모바일 카드 겸용) -->
+            <div class="bg-slate-900/80 border border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                <!-- 로딩 스피너 -->
+                <div id="loading-spinner" class="py-16 text-center text-slate-400">
+                    <i class="fa-solid fa-circle-notch fa-spin text-3xl text-emerald-500 mb-3"></i>
+                    <p class="text-sm">보급품 사용 대장 데이터를 동기화하는 중입니다...</p>
+                </div>
+
+                <!-- 데이터 비어있음 표시 -->
+                <div id="empty-state" class="hidden py-16 text-center text-slate-400">
+                    <i class="fa-solid fa-folder-open text-4xl text-slate-600 mb-3"></i>
+                    <p class="text-base font-semibold text-slate-300">등록된 보급품 사용 기록이 없습니다.</p>
+                    <p class="text-xs text-slate-500 mt-1">상단의 작성 폼을 통해 첫 번째 사용 대장을 등록해보세요.</p>
+                </div>
+
+                <!-- 테이블 뷰 -->
+                <div class="overflow-x-auto">
+                    <table id="ledger-table" class="w-full text-left border-collapse hidden">
+                        <thead>
+                            <tr
+                                class="border-b border-slate-800 bg-slate-950/70 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                                <th class="py-3 px-4">번호</th>
+                                <th class="py-3 px-4">분류</th>
+                                <th class="py-3 px-4">품목명</th>
+                                <th class="py-3 px-4 text-center">수량</th>
+                                <th class="py-3 px-4">사용자 / 소속</th>
+                                <th class="py-3 px-4">사용 목적</th>
+                                <th class="py-3 px-4">상세 메모</th>
+                                <th class="py-3 px-4">상태</th>
+                                <th class="py-3 px-4">사용 일시</th>
+                                <th class="py-3 px-4 text-center">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledger-tbody" class="divide-y divide-slate-800/60 text-xs">
+                            <!-- JavaScript가 데이터를 렌더링합니다 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 상세 메모 보기 모달 -->
+    <div id="memo-modal"
+        class="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="closeMemoModal()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="flex items-center space-x-2 text-emerald-400 font-bold mb-2">
+                <i class="fa-solid fa-memo-circle-info"></i>
+                <span id="modal-memo-item">품목 메모 상세</span>
+            </div>
+            <div class="text-xs text-slate-400 mb-4 flex items-center space-x-2">
+                <span id="modal-memo-user" class="text-slate-300 font-semibold">작성자</span>
+                <span>•</span>
+                <span id="modal-memo-date">일시</span>
+            </div>
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-sm text-slate-200 whitespace-pre-wrap leading-relaxed max-h-60 overflow-y-auto"
+                id="modal-memo-content">
+                메모 내용이 없습니다.
+            </div>
+            <div class="mt-5 flex justify-end">
+                <button onclick="closeMemoModal()"
+                    class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-xs font-semibold">
+                    닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase 설정 모달 (웹에서 바로 키를 넣어서 테스트할 수 있는 초보자 배려 기능) -->
+    <div id="config-modal"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+            <button onclick="closeConfigModal()" class="absolute right-4 top-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+            <div class="flex items-center space-x-2 text-amber-400 font-bold text-base mb-1">
+                <i class="fa-solid fa-database"></i>
+                <span>Supabase 연결 설정</span>
+            </div>
+            <p class="text-xs text-slate-400 mb-4">
+                Supabase 대시보드의 <strong class="text-slate-200">Project Settings -> API</strong>에서 복사한 주소와 키를 입력하세요. 브라우저에
+                안전하게 저장됩니다.
+            </p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Project URL</label>
+                    <input type="text" id="config-url" placeholder="https://xxxxxxxx.supabase.co"
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">anon public key</label>
+                    <input type="password" id="config-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+                        class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-between items-center">
+                <button onclick="resetToDemo()" class="text-xs text-slate-500 hover:text-slate-300 underline">
+                    데모 모드로 초기화
+                </button>
+                <div class="space-x-2">
+                    <button onclick="closeConfigModal()"
+                        class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">
+                        취소
+                    </button>
+                    <button onclick="saveSupabaseConfig()"
+                        class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow">
+                        연결 저장 및 새로고침
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 푸터 -->
+    <footer class="mt-16 border-t border-slate-900 bg-slate-950/80 py-8 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4 space-y-2">
+            <p class="font-medium text-slate-400">대한민국 국방 디지털 군 보급품 통합 관리 시스템 (공개 대장부)</p>
+            <p>Powered by <span class="text-emerald-400">Supabase DB</span> & <span class="text-blue-400">Vercel
+                    Deployment</span></p>
+            <p class="text-[11px] text-slate-600">본 시스템은 군 보급품의 공정하고 투명한 불출/사용 기록을 위해 상시 공개 운영됩니다.</p>
+        </div>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
